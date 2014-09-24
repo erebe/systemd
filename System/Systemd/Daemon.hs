@@ -55,9 +55,7 @@ notifyBusError :: String -> IO Bool
 notifyBusError msg = notify False $ "BUSERROR=" ++ msg
 
 unsetEnvironnement :: IO ()
-unsetEnvironnement = unsetEnv envVariableName
-                     >> unsetEnv "LISTEN_PID"
-                     >> unsetEnv "LISTEN_FDS"
+unsetEnvironnement = mapM_ unsetEnv [envVariableName, "LISTEN_PID", "LISTEN_FDS"]
 
 notify :: Bool -> String -> IO Bool
 notify unset_env state = do

@@ -1,6 +1,6 @@
-#Haskell implementaion for systemd
+#Haskell implementation for systemd
 
-Systemd offers functionnalities to developpers for creating daemons process
+Systemd offers some functionnalities to developpers for creating daemons process
 
 
 - Whatchdog (http://www.freedesktop.org/software/systemd/man/sd_notify.html)
