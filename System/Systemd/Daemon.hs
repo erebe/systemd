@@ -65,7 +65,7 @@ notify unset_env state = do
 
             socketPath <- MaybeT (getEnv envVariableName)
             guard $ isValidPath socketPath
-            let socketPath' = if head socketPath == '@'
+            let socketPath' = if head socketPath == '@' -- For abstract socket
                               then '\0' : tail socketPath
                               else socketPath
 
