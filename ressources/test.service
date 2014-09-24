@@ -1,0 +1,11 @@
+[Unit]
+Description=test
+
+[Service]
+Type=simple
+TimeoutStartSec=0
+ExecStart=/home/erebe/programmation/haskell/systemd/dist/build/test/test
+WatchdogSec=3
+
+[Install]
+WantedBy=multi-user.target
