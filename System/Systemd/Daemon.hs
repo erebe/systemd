@@ -1,21 +1,54 @@
 
-module System.Systemd.Daemon (notify) where
+module System.Systemd.Daemon ( notify
+                             , notifyWatchdog   
+                             , notifyReady
+                             , notifyPID
+                             , notifyErrno
+                             , notifyStatus
+                             , notifyBusError
+                             , unsetEnvironnement
+                             ) where
 
 import           Control.Monad.Trans.Maybe
 import           Control.Monad
 import           Control.Monad.IO.Class(liftIO)
 import           Data.List
 
--- import qualified Data.Text                 as T
-import qualified Data.ByteString            as B
--- import qualified Data.ByteString.Char8      as BC
+import qualified Data.ByteString.Char8      as BC
 
 import           System.Posix.Env
-import           Control.Applicative
+import           System.Posix.Types(CPid(..))
+import           Foreign.C.Error(Errno(..))
+
 import Network.Socket hiding (send, sendTo, recv, recvFrom)
 import Network.Socket.ByteString
 
-notify :: Bool -> B.ByteString -> IO Bool
+
+envVariableName :: String
+envVariableName = "NOTIFY_SOCKET"
+
+notifyWatchdog :: IO Bool
+notifyWatchdog = notify False "WATCHDOG=1"
+
+notifyReady :: IO Bool
+notifyReady = notify False "READY=1"
+
+notifyPID :: CPid -> IO Bool
+notifyPID pid = notify False $ "MAINPID=" ++ show pid
+
+notifyErrno :: Errno -> IO Bool
+notifyErrno (Errno errorNb) = notify False $ "ERRNO=" ++ show errorNb
+
+notifyStatus :: String -> IO Bool
+notifyStatus msg = notify False $ "STATUS=" ++ msg
+
+notifyBusError :: String -> IO Bool
+notifyBusError msg = notify False $ "BUSERROR=" ++ msg
+
+unsetEnvironnement :: IO ()
+unsetEnvironnement = unsetEnv envVariableName
+
+notify :: Bool -> String -> IO Bool
 notify unset_env state = do
         res <- runMaybeT notifyImpl
         when unset_env unsetEnvironnement
@@ -24,21 +57,19 @@ notify unset_env state = do
             _      -> return False
 
     where
-        envName = "NOTIFY_SOCKET"
         isValidPath path =   (length path >= 2)
                           && ( "@" `isPrefixOf` path
                              || "/" `isPrefixOf` path)
-        unsetEnvironnement = unsetEnv envName
         notifyImpl = do
-            guard $ state /= B.empty
+            guard $ state /= ""
 
-            socketPath <- MaybeT (getEnv envName) 
+            socketPath <- MaybeT (getEnv envVariableName) 
             guard $ isValidPath socketPath
 
             socketFd <- liftIO $ socket AF_UNIX Datagram 0
-            nbBytes <- liftIO $ sendTo socketFd state (SockAddrUnix socketPath)
+            nbBytes <- liftIO $ sendTo socketFd (BC.pack state) (SockAddrUnix socketPath)
             liftIO $ close socketFd
-            guard $ nbBytes >= B.length state
+            guard $ nbBytes >= length state
 
 
             return ()
