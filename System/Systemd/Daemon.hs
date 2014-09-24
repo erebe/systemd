@@ -1,6 +1,6 @@
 
 module System.Systemd.Daemon ( notify
-                             , notifyWatchdog   
+                             , notifyWatchdog
                              , notifyReady
                              , notifyPID
                              , notifyErrno
@@ -9,19 +9,19 @@ module System.Systemd.Daemon ( notify
                              , unsetEnvironnement
                              ) where
 
-import           Control.Monad.Trans.Maybe
 import           Control.Monad
-import           Control.Monad.IO.Class(liftIO)
+import           Control.Monad.IO.Class    (liftIO)
+import           Control.Monad.Trans.Maybe
 import           Data.List
 
-import qualified Data.ByteString.Char8      as BC
+import qualified Data.ByteString.Char8     as BC
 
+import           Foreign.C.Error           (Errno (..))
 import           System.Posix.Env
-import           System.Posix.Types(CPid(..))
-import           Foreign.C.Error(Errno(..))
+import           System.Posix.Types        (CPid (..))
 
-import Network.Socket hiding (send, sendTo, recv, recvFrom)
-import Network.Socket.ByteString
+import           Network.Socket            hiding (recv, recvFrom, send, sendTo)
+import           Network.Socket.ByteString
 
 
 envVariableName :: String
@@ -63,11 +63,14 @@ notify unset_env state = do
         notifyImpl = do
             guard $ state /= ""
 
-            socketPath <- MaybeT (getEnv envVariableName) 
+            socketPath <- MaybeT (getEnv envVariableName)
             guard $ isValidPath socketPath
+            let socketPath' = if head socketPath == '@'
+                              then '\0' : tail socketPath
+                              else socketPath
 
             socketFd <- liftIO $ socket AF_UNIX Datagram 0
-            nbBytes <- liftIO $ sendTo socketFd (BC.pack state) (SockAddrUnix socketPath)
+            nbBytes  <- liftIO $ sendTo socketFd (BC.pack state) (SockAddrUnix socketPath')
             liftIO $ close socketFd
             guard $ nbBytes >= length state
 
