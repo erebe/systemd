@@ -3,17 +3,21 @@
 
 name:                systemd
 version:             0.1.0.0
--- synopsis:
--- description:
-license:             GPL-3
+synopsis:            Systemd facilities (Socket activation, Notify)
+description:         A module for Systemd facilities.
+homepage:            https://github.com/erebe/systemd
+license:             BSD3
 license-file:        LICENSE
 author:              Erèbe
-maintainer:          erebe@erebe.eu
--- copyright:
+maintainer:          romain.gerard@erebe.eu
+
 category:            System
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
+source-repository head
+    type: git
+    location: https://github.com/erebe/systemd
 
 library
   exposed-modules:  System.Systemd.Daemon
@@ -34,7 +38,7 @@ executable test
     ghc-options:         -Wall -O3 -threaded
     main-is:             Main.hs
     default-language:    Haskell2010
-  build-depends:       base >=4.7 && <4.8,
+    build-depends:       base >=4.7 && <4.8,
                        unix >= 2.5,
                        transformers >= 0.3,
                        network >=2.3,

@@ -36,27 +36,44 @@ import           Network.Socket.ByteString
 envVariableName :: String
 envVariableName = "NOTIFY_SOCKET"
 
+-- | Notify the watchdog that the program is still alive
 notifyWatchdog :: IO (Maybe())
 notifyWatchdog = notify False "WATCHDOG=1"
 
+-- | Notify the systemd that the program is ready
 notifyReady :: IO (Maybe())
 notifyReady = notify False "READY=1"
 
+-- | Notify systemd of the PID of the program (for after a fork)
 notifyPID :: CPid -> IO (Maybe())
 notifyPID pid = notify False $ "MAINPID=" ++ show pid
 
+-- | Notify systemd of an errno error
 notifyErrno :: Errno -> IO (Maybe())
 notifyErrno (Errno errorNb) = notify False $ "ERRNO=" ++ show errorNb
 
+-- | Notify systemd of the status of the program. An arbitrary string
+-- can be passed
 notifyStatus :: String -> IO (Maybe())
 notifyStatus msg = notify False $ "STATUS=" ++ msg
 
+-- | Notify systemd of a DBUS error like
+-- correct formatting of the error is left to the caller
 notifyBusError :: String -> IO (Maybe())
 notifyBusError msg = notify False $ "BUSERROR=" ++ msg
 
+-- | Unset all environnement variable related to Systemd
+-- Calls to notify like functions and Socket like will
+-- fail after that
 unsetEnvironnement :: IO ()
 unsetEnvironnement = mapM_ unsetEnv [envVariableName, "LISTEN_PID", "LISTEN_FDS"]
 
+-- | Notify systemd about an event
+-- After notifying systemd the @Bool@ parameter specify if the environnement
+-- shall be unset (Further call to notify will fail)
+-- The @String@ is the event to pass
+-- Returns @Nothing@ if the program was not started with systemd
+-- or that the environnement was previously unset
 notify :: Bool -> String -> IO (Maybe ())
 notify unset_env state = do
         res <- runMaybeT notifyImpl
