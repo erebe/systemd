@@ -1,14 +1,68 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
+{-|
+Module      : System.Systemd.Daemon
+Description : Systemd facilities to manage daemons
+Copyright   : (c) Romain Gérard, 2014
+                  David Fisher, 2013
+License     : BSD3
+Maintainer  : romain.gerard@erebe.eu
+Stability   : experimental
+Portability : Require Systemd or will fail otherwise
 
-module System.Systemd.Daemon ( notify
+Implementation of Systemd facilities to create and manage
+daemons.
+
+This module contains socket activation and notify tools. See 
+
+* <http://0pointer.de/blog/projects/socket-activation.html> 
+* <http://www.freedesktop.org/software/systemd/man/systemd.socket.html>
+* <http://www.freedesktop.org/software/systemd/man/systemd.service.html>
+
+Example:
+
+@
+import Control.Monad(forever)
+import System.Systemd.Daemon(notifyWatchdog)
+
+main :: IO ()
+main = forever $ do
+        functionThatMayHang
+        notifyWatchdog
+@
+
+If you use the service described as below,
+Systemd will restart your program each time the watchdog 
+fail to notify itself under 60 sec.
+
+@
+[Unit]
+Description=MyDaemon
+
+[Service]
+Type=simple
+TimeoutStartSec=0
+ExecStart=AbsolutePathToMyExecutable
+WatchdogSec=60
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+@
+-}
+
+module System.Systemd.Daemon (
+                               -- * Notify functions
+                               notify
                              , notifyWatchdog
                              , notifyReady
                              , notifyPID
                              , notifyErrno
                              , notifyStatus
                              , notifyBusError
-                             , unsetEnvironnement
+                             -- * Socket activation functions
                              , getActivatedSockets
+                             -- * Utils
+                             , unsetEnvironnement
                              ) where
 
 
@@ -30,9 +84,7 @@ import           Network.Socket            hiding (recv, recvFrom, send, sendTo)
 import           Network.Socket.ByteString
 
 
-------------------------------------------------------------------------------------------------
---  NOTIFY
-------------------------------------------------------------------------------------------------
+
 envVariableName :: String
 envVariableName = "NOTIFY_SOCKET"
 
@@ -48,28 +100,27 @@ notifyReady = notify False "READY=1"
 notifyPID :: CPid -> IO (Maybe())
 notifyPID pid = notify False $ "MAINPID=" ++ show pid
 
--- | Notify systemd of an errno error
+-- | Notify systemd of an 'Errno' error
 notifyErrno :: Errno -> IO (Maybe())
 notifyErrno (Errno errorNb) = notify False $ "ERRNO=" ++ show errorNb
 
--- | Notify systemd of the status of the program. An arbitrary string
+-- | Notify systemd of the status of the program. An arbitrary 'String'
 -- can be passed
 notifyStatus :: String -> IO (Maybe())
 notifyStatus msg = notify False $ "STATUS=" ++ msg
 
--- | Notify systemd of a DBUS error like
--- correct formatting of the error is left to the caller
+-- | Notify systemd of a DBUS error like.
+-- Correct formatting of the 'String' is left to the caller
 notifyBusError :: String -> IO (Maybe())
 notifyBusError msg = notify False $ "BUSERROR=" ++ msg
 
--- | Unset all environnement variable related to Systemd
--- Calls to notify like functions and Socket like will
--- fail after that
+-- | Unset all environnement variable related to Systemd.
+-- Calls to 'notify' like and 'getActivatedSockets' functions will return 'Nothing' after that
 unsetEnvironnement :: IO ()
 unsetEnvironnement = mapM_ unsetEnv [envVariableName, "LISTEN_PID", "LISTEN_FDS"]
 
 -- | Notify systemd about an event
--- After notifying systemd the @Bool@ parameter specify if the environnement
+-- After notifying systemd the 'Bool' parameter specify if the environnement
 -- shall be unset (Further call to notify will fail)
 -- The @String@ is the event to pass
 -- Returns @Nothing@ if the program was not started with systemd

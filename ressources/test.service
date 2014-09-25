@@ -1,11 +1,12 @@
 [Unit]
-Description=test
+Description=MyDaemon
 
 [Service]
 Type=simple
 TimeoutStartSec=0
-ExecStart=/home/erebe/programmation/haskell/systemd/dist/build/test/test
-WatchdogSec=3
+ExecStart=/home/erebe/programmation/haskell/systemd/dist/build/daemon-test/daemon-test
+WatchdogSec=60
+Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
