@@ -36,34 +36,32 @@ import           Network.Socket.ByteString
 envVariableName :: String
 envVariableName = "NOTIFY_SOCKET"
 
-notifyWatchdog :: IO Bool
+notifyWatchdog :: IO (Maybe())
 notifyWatchdog = notify False "WATCHDOG=1"
 
-notifyReady :: IO Bool
+notifyReady :: IO (Maybe())
 notifyReady = notify False "READY=1"
 
-notifyPID :: CPid -> IO Bool
+notifyPID :: CPid -> IO (Maybe())
 notifyPID pid = notify False $ "MAINPID=" ++ show pid
 
-notifyErrno :: Errno -> IO Bool
+notifyErrno :: Errno -> IO (Maybe())
 notifyErrno (Errno errorNb) = notify False $ "ERRNO=" ++ show errorNb
 
-notifyStatus :: String -> IO Bool
+notifyStatus :: String -> IO (Maybe())
 notifyStatus msg = notify False $ "STATUS=" ++ msg
 
-notifyBusError :: String -> IO Bool
+notifyBusError :: String -> IO (Maybe())
 notifyBusError msg = notify False $ "BUSERROR=" ++ msg
 
 unsetEnvironnement :: IO ()
 unsetEnvironnement = mapM_ unsetEnv [envVariableName, "LISTEN_PID", "LISTEN_FDS"]
 
-notify :: Bool -> String -> IO Bool
+notify :: Bool -> String -> IO (Maybe ())
 notify unset_env state = do
         res <- runMaybeT notifyImpl
         when unset_env unsetEnvironnement
-        case res of
-            Just _ -> return True
-            _      -> return False
+        return res
 
     where
         isValidPath path =   (length path >= 2)
