@@ -35,6 +35,6 @@ test-suite daemon-test
    type:                exitcode-stdio-1.0
    main-is:             Main.hs
    default-language:    Haskell2010
-   build-depends:       base >=4.7 && <= 4.8.1.0,
-                        systemd
+   build-depends:       base == 4.*
+                        , systemd
    default-language:    Haskell2010
