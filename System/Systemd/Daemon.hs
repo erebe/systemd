@@ -6,7 +6,7 @@ Copyright   : (c) Romain Gérard, 2014
                   David Fisher, 2013
 License     : BSD3
 Maintainer  : romain.gerard@erebe.eu
-Stability   : experimental
+Stability   : stable
 Portability : Require Systemd or will fail otherwise
 
 Implementation of Systemd facilities to create and manage
