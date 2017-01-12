@@ -12,9 +12,9 @@ Portability : Require Systemd or will fail otherwise
 Implementation of Systemd facilities to create and manage
 daemons.
 
-This module contains socket activation and notify tools. See 
+This module contains socket activation and notify tools. See
 
-* <http://0pointer.de/blog/projects/socket-activation.html> 
+* <http://0pointer.de/blog/projects/socket-activation.html>
 * <http://www.freedesktop.org/software/systemd/man/systemd.socket.html>
 * <http://www.freedesktop.org/software/systemd/man/systemd.service.html>
 
@@ -31,7 +31,7 @@ main = forever $ do
 @
 
 If you use the service described as below,
-Systemd will restart your program each time the watchdog 
+Systemd will restart your program each time the watchdog
 fail to notify itself under 60 sec.
 
 @
@@ -53,6 +53,9 @@ WantedBy=multi-user.target
 module System.Systemd.Daemon (
                                -- * Notify functions
                                notify
+                             , notifyWithFD
+                             , storeFd
+                             , storeFdWithName
                              , notifyWatchdog
                              , notifyReady
                              , notifyPID
@@ -63,6 +66,7 @@ module System.Systemd.Daemon (
                              , notifyStopping
                              -- * Socket activation functions
                              , getActivatedSockets
+                             , getActivatedSocketsWithNames
                              -- * Utils
                              , unsetEnvironnement
                              ) where
@@ -78,12 +82,15 @@ import qualified Data.ByteString.Char8     as BC
 
 import           Foreign.C.Error           (Errno (..))
 import           Foreign.C.Types           (CInt (..))
+import           Foreign.Ptr
 import           System.Posix.Env
 import           System.Posix.Process
 import           System.Posix.Types        (CPid (..))
 
+import           Data.ByteString.Unsafe    (unsafeUseAsCStringLen)
 import           Network.Socket            hiding (recv, recvFrom, send, sendTo)
 import           Network.Socket.ByteString
+import           Network.Socket.Internal   (withSockAddr)
 
 
 
@@ -124,10 +131,22 @@ notifyStatus msg = notify False $ "STATUS=" ++ msg
 notifyBusError :: String -> IO (Maybe())
 notifyBusError msg = notify False $ "BUSERROR=" ++ msg
 
+-- | Notify systemd to store a socket for us
+-- To be used along getActivatedSockets during a restart
+-- usefull for zero downtime restart
+storeFd :: Bool -> Socket -> IO (Maybe ())
+storeFd unset_env = notifyWithFD unset_env "FDSTORE=1"
+
+-- | Notify systemd to store a socket for us and specify a name
+-- To be used along getActivatedSocketsWithNames during a restart
+-- usefull for zero downtime restart
+storeFdWithName :: Bool -> Socket -> String -> IO (Maybe ())
+storeFdWithName unset_env sock name = notifyWithFD unset_env ("FDSTORE=1\nFDNAME=" ++ name) sock
+
 -- | Unset all environnement variable related to Systemd.
 -- Calls to 'notify' like and 'getActivatedSockets' functions will return 'Nothing' after that
 unsetEnvironnement :: IO ()
-unsetEnvironnement = mapM_ unsetEnv [envVariableName, "LISTEN_PID", "LISTEN_FDS"]
+unsetEnvironnement = mapM_ unsetEnv [envVariableName, "LISTEN_PID", "LISTEN_FDS", "LISTEN_FDNAMES"]
 
 -- | Notify systemd about an event
 -- After notifying systemd the 'Bool' parameter specify if the environnement
@@ -136,7 +155,16 @@ unsetEnvironnement = mapM_ unsetEnv [envVariableName, "LISTEN_PID", "LISTEN_FDS"
 -- Returns @Nothing@ if the program was not started with systemd
 -- or that the environnement was previously unset
 notify :: Bool -> String -> IO (Maybe ())
-notify unset_env state = do
+notify unset_env state = notifyWithFD_ unset_env state Nothing
+
+-- | Same as @notify@ but send a long a socket to be stored
+-- It is up to the caller to properly set the message
+-- (i.e: do not forget to set FDSTORE=1)
+notifyWithFD :: Bool -> String -> Socket -> IO (Maybe ())
+notifyWithFD unset_env state sock = notifyWithFD_ unset_env state (Just sock)
+
+notifyWithFD_ :: Bool -> String -> Maybe Socket -> IO (Maybe ())
+notifyWithFD_ unset_env state sock = do
         res <- runMaybeT notifyImpl
         when unset_env unsetEnvironnement
         return res
@@ -155,12 +183,18 @@ notify unset_env state = do
                               else socketPath
 
             socketFd <- liftIO $ socket AF_UNIX Datagram 0
-            nbBytes  <- liftIO $ sendTo socketFd (BC.pack state) (SockAddrUnix socketPath')
+            nbBytes  <- liftIO $ case sock of
+                  Nothing     -> sendTo socketFd (BC.pack state) (SockAddrUnix socketPath')
+                  Just sock'  -> sendBufWithFdTo socketFd (BC.pack state)
+                                                (SockAddrUnix socketPath') sock'
+
             liftIO $ close socketFd
             guard $ nbBytes >= length state
 
 
             return ()
+
+
 
 
 
@@ -177,12 +211,27 @@ fdStart = 3
 -- and status set appropriately.  Returns @Nothing@ in systems without socket activation (or
 -- when the program was not socket activated).
 getActivatedSockets :: IO (Maybe [Socket])
-getActivatedSockets = runMaybeT $ do
-    listenPid <- read <$> MaybeT (getEnv "LISTEN_PID")
-    listenFDs <- read <$> MaybeT (getEnv "LISTEN_FDS")
-    myPid     <- liftIO getProcessID
+getActivatedSockets = fmap (fmap fst) <$> getActivatedSocketsWithNames
+
+-- | Same as @getActivatedSockets@ but return also the name associated
+-- with those sockets if @storeFdWithName@ was used. IF @storeFd@ was
+-- used to transmit the socket to systemd, the name will be a generic one
+-- (i.e: usally "stored")
+getActivatedSocketsWithNames :: IO (Maybe [(Socket, String)])
+getActivatedSocketsWithNames = runMaybeT $ do
+    listenPid     <- read <$> MaybeT (getEnv "LISTEN_PID")
+    listenFDs     <- read <$> MaybeT (getEnv "LISTEN_FDS")
+    listenFDNames <- MaybeT (getEnv "LISTEN_FDNAMES")
+
+    myPid <- liftIO getProcessID
     guard $ listenPid == myPid
-    mapM makeSocket [fdStart .. fdStart + listenFDs - 1]
+
+    let listenFDNames' = fmap BC.unpack $ BC.split ':' $ BC.pack listenFDNames
+    sockets <- mapM makeSocket [fdStart .. fdStart + listenFDs - 1]
+    guard $ length sockets == length listenFDNames'
+
+    return $ zip sockets listenFDNames'
+
   where makeSocket :: CInt -> MaybeT IO Socket
         makeSocket fd = do
           fam  <- socketFamily fd
@@ -216,6 +265,14 @@ socketStatus fd = do
       1 -> return Listening
       _ -> mzero
 
+
+sendBufWithFdTo :: Socket -> BC.ByteString -> SockAddr -> Socket -> IO Int
+sendBufWithFdTo sock state addr sockToSend =
+  unsafeUseAsCStringLen state $ \(ptr, nbytes) ->
+    withSockAddr addr $ \p_addr sz ->
+      fromIntegral <$> c_sd_notify_with_fd (fdSocket sock) ptr (fromIntegral nbytes)
+                                           p_addr (fromIntegral sz) (fdSocket sockToSend)
+
 foreign import ccall unsafe "socket_family"
   c_socket_family :: CInt -> IO CInt
 
@@ -224,3 +281,6 @@ foreign import ccall unsafe "socket_type"
 
 foreign import ccall unsafe "socket_listening"
   c_socket_listening :: CInt -> IO CInt
+
+foreign import ccall unsafe "sd_notify_with_fd"
+  c_sd_notify_with_fd :: CInt -> Ptr a -> CInt -> Ptr b -> CInt -> CInt -> IO CInt
