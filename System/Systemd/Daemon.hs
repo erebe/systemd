@@ -59,6 +59,8 @@ module System.Systemd.Daemon (
                              , notifyErrno
                              , notifyStatus
                              , notifyBusError
+                             , notifyReloading
+                             , notifyStopping
                              -- * Socket activation functions
                              , getActivatedSockets
                              -- * Utils
@@ -99,6 +101,14 @@ notifyReady = notify False "READY=1"
 -- | Notify systemd of the PID of the program (for after a fork)
 notifyPID :: CPid -> IO (Maybe())
 notifyPID pid = notify False $ "MAINPID=" ++ show pid
+
+-- | Notify systemd that the service is reloading its configuration
+notifyReloading :: IO (Maybe())
+notifyReloading = notify False "RELOADING=1"
+
+-- | Notify systemd that the service is beginning its shutdown
+notifyStopping :: IO (Maybe())
+notifyStopping = notify False "STOPPING=1"
 
 -- | Notify systemd of an 'Errno' error
 notifyErrno :: Errno -> IO (Maybe())
