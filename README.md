@@ -8,4 +8,4 @@ Systemd offers some functionnalities to developpers for creating daemons process
 - journal log
 
 Available on hackage
-http://hackage.haskell.org/package/systemd-1.0.0/docs/System-Systemd-Daemon.html
+http://hackage.haskell.org/package/systemd-1.1.0/docs/System-Systemd-Daemon.html
