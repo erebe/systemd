@@ -121,43 +121,54 @@ notifyStopping = notify False "STOPPING=1"
 notifyErrno :: Errno -> IO (Maybe())
 notifyErrno (Errno errorNb) = notify False $ "ERRNO=" ++ show errorNb
 
--- | Notify systemd of the status of the program. An arbitrary 'String'
--- can be passed
+-- | Notify systemd of the status of the program.
+--
+-- An arbitrary 'String' can be passed
 notifyStatus :: String -> IO (Maybe())
 notifyStatus msg = notify False $ "STATUS=" ++ msg
 
 -- | Notify systemd of a DBUS error like.
+--
 -- Correct formatting of the 'String' is left to the caller
 notifyBusError :: String -> IO (Maybe())
 notifyBusError msg = notify False $ "BUSERROR=" ++ msg
 
--- | Notify systemd to store a socket for us
--- To be used along getActivatedSockets during a restart
--- usefull for zero downtime restart
+-- | Notify systemd to store a socket for us.
+--
+-- To be used along 'getActivatedSockets' during a restart
+--
+-- Usefull for zero downtime restart
 storeFd :: Socket -> IO (Maybe ())
 storeFd = notifyWithFD False "FDSTORE=1"
 
--- | Notify systemd to store a socket for us and specify a name
--- To be used along getActivatedSocketsWithNames during a restart
--- usefull for zero downtime restart
+-- | Notify systemd to store a socket for us and specify a name.
+--
+-- To be used along 'getActivatedSocketsWithNames' during a restart
+--
+-- Usefull for zero downtime restart
 storeFdWithName :: Socket -> String -> IO (Maybe ())
 storeFdWithName sock name = notifyWithFD False ("FDSTORE=1\nFDNAME=" ++ name) sock
 
 -- | Unset all environnement variable related to Systemd.
+--
 -- Calls to 'notify' like and 'getActivatedSockets' functions will return 'Nothing' after that
 unsetEnvironnement :: IO ()
 unsetEnvironnement = mapM_ unsetEnv [envVariableName, "LISTEN_PID", "LISTEN_FDS", "LISTEN_FDNAMES"]
 
 -- | Notify systemd about an event
+--
 -- After notifying systemd the 'Bool' parameter specify if the environnement
 -- shall be unset (Further call to notify will fail)
--- The @String@ is the event to pass
--- Returns @Nothing@ if the program was not started with systemd
+--
+-- The 'String' is the event to pass
+--
+-- Returns 'Nothing' if the program was not started with systemd
 -- or that the environnement was previously unset
 notify :: Bool -> String -> IO (Maybe ())
 notify unset_env state = notifyWithFD_ unset_env state Nothing
 
--- | Same as @notify@ but send a long a socket to be stored
+-- | Same as 'notify' but send along a socket to be stored
+--
 -- It is up to the caller to properly set the message
 -- (i.e: do not forget to set FDSTORE=1)
 notifyWithFD :: Bool -> String -> Socket -> IO (Maybe ())
@@ -206,16 +217,20 @@ fdStart :: CInt
 fdStart = 3
 
 -- | Return a list of activated sockets, if the program was started with
--- socket activation.  The sockets are in the same order as in
--- the associated @.socket@ file.  The sockets will have their family, type,
--- and status set appropriately.  Returns @Nothing@ in systems without socket activation (or
+-- socket activation.
+--
+-- The sockets are in the same order as in the associated @.socket@ file.
+-- The sockets will have their family, type, and status set appropriately.
+--
+-- Returns 'Nothing' in systems without socket activation (or
 -- when the program was not socket activated).
 getActivatedSockets :: IO (Maybe [Socket])
 getActivatedSockets = fmap (fmap fst) <$> getActivatedSocketsWithNames
 
--- | Same as @getActivatedSockets@ but return also the name associated
--- with those sockets if @storeFdWithName@ was used. IF @storeFd@ was
--- used to transmit the socket to systemd, the name will be a generic one
+-- | Same as 'getActivatedSockets' but return also the names associated
+-- with those sockets if 'storeFdWithName' was used or specified in the @.socket@ file.
+--
+-- IF 'storeFd' was used to transmit the socket to systemd, the name will be a generic one
 -- (i.e: usally "stored")
 getActivatedSocketsWithNames :: IO (Maybe [(Socket, String)])
 getActivatedSocketsWithNames = runMaybeT $ do
