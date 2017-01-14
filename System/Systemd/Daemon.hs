@@ -134,14 +134,14 @@ notifyBusError msg = notify False $ "BUSERROR=" ++ msg
 -- | Notify systemd to store a socket for us
 -- To be used along getActivatedSockets during a restart
 -- usefull for zero downtime restart
-storeFd :: Bool -> Socket -> IO (Maybe ())
-storeFd unset_env = notifyWithFD unset_env "FDSTORE=1"
+storeFd :: Socket -> IO (Maybe ())
+storeFd = notifyWithFD False "FDSTORE=1"
 
 -- | Notify systemd to store a socket for us and specify a name
 -- To be used along getActivatedSocketsWithNames during a restart
 -- usefull for zero downtime restart
-storeFdWithName :: Bool -> Socket -> String -> IO (Maybe ())
-storeFdWithName unset_env sock name = notifyWithFD unset_env ("FDSTORE=1\nFDNAME=" ++ name) sock
+storeFdWithName :: Socket -> String -> IO (Maybe ())
+storeFdWithName sock name = notifyWithFD False ("FDSTORE=1\nFDNAME=" ++ name) sock
 
 -- | Unset all environnement variable related to Systemd.
 -- Calls to 'notify' like and 'getActivatedSockets' functions will return 'Nothing' after that

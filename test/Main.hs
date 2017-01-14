@@ -27,9 +27,9 @@ main = do
   s <- listenOn (PortNumber 1213)
   s' <- listenOn (PortNumber 1214)
 
-  x <- storeFd False s
+  x <- storeFd s
   apF x
-  x <- storeFdWithName False s' "tutu"
+  x <- storeFdWithName s' "tutu"
   apF x
   forever (runner s)
     where
