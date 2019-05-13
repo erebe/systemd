@@ -252,7 +252,9 @@ getActivatedSocketsWithNames = runMaybeT $ do
           fam  <- socketFamily fd
           typ  <- socketType fd
           stat <- socketStatus fd
-          liftIO $ mkSocket fd fam typ defaultProtocol stat
+          liftIO $ do
+            setNonBlockIfNeeded fd
+            mkSocket fd fam typ defaultProtocol stat
 
 socketFamily :: CInt -> MaybeT IO Family
 socketFamily fd = do
