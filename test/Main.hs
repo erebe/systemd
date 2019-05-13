@@ -12,8 +12,8 @@ import System.Posix.Env as Ev
 apF :: Show w => w -> IO ()
 apF = appendFile "/home/erebe/log" . (++ "\n") . show
 
-main :: IO ()
-main = do
+test :: IO ()
+test = do
   hSetBuffering stdout LineBuffering
   ev <-  Ev.getEnvironment
   apF ev
@@ -39,3 +39,7 @@ main = do
             apF x
             threadDelay $ 1000000 * 2
 
+main :: IO ()
+main = do
+   -- _ <- test
+   return ()
