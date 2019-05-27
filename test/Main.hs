@@ -2,15 +2,15 @@
 import System.Systemd.Daemon
 import Control.Monad
 import Control.Concurrent
-import Network
 
+import Network.Socket
 import System.IO
 import Data.Char
 import System.Posix.Env as Ev
 
 
 apF :: Show w => w -> IO ()
-apF = appendFile "/home/erebe/log" . (++ "\n") . show
+apF = appendFile "/tmp/log" . (++ "\n") . show
 
 test :: IO ()
 test = do
@@ -24,8 +24,10 @@ test = do
   apF "totot"
 
   threadDelay $ 1000000 * 20
-  s <- listenOn (PortNumber 1213)
-  s' <- listenOn (PortNumber 1214)
+  s <- socket AF_INET Stream defaultProtocol
+  s' <- socket AF_INET Stream defaultProtocol
+  listen s 1213
+  listen s' 1214
 
   x <- storeFd s
   apF x

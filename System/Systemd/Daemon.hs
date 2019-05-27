@@ -72,7 +72,7 @@ module System.Systemd.Daemon (
                              ) where
 
 
-import           Control.Applicative
+import           Control.Exception         (bracket)
 import           Control.Monad
 import           Control.Monad.IO.Class    (liftIO)
 import           Control.Monad.Trans.Maybe
@@ -82,15 +82,16 @@ import qualified Data.ByteString.Char8     as BC
 
 import           Foreign.C.Error           (Errno (..))
 import           Foreign.C.Types           (CInt (..))
+import           Foreign.Marshal           (free, mallocBytes)
 import           Foreign.Ptr
 import           System.Posix.Env
 import           System.Posix.Process
 import           System.Posix.Types        (CPid (..))
 
 import           Data.ByteString.Unsafe    (unsafeUseAsCStringLen)
-import           Network.Socket            hiding (recv, recvFrom, send, sendTo)
+import           Network.Socket
+import           Network.Socket.Address    hiding (recvFrom, sendTo)
 import           Network.Socket.ByteString
-import           Network.Socket.Internal   (withSockAddr)
 
 
 
@@ -248,56 +249,20 @@ getActivatedSocketsWithNames = runMaybeT $ do
     return $ zip sockets listenFDNames'
 
   where makeSocket :: CInt -> MaybeT IO Socket
-        makeSocket fd = do
-          fam  <- socketFamily fd
-          typ  <- socketType fd
-          stat <- socketStatus fd
-          liftIO $ do
+        makeSocket fd = liftIO $ do
             setNonBlockIfNeeded fd
-            mkSocket fd fam typ defaultProtocol stat
-
-socketFamily :: CInt -> MaybeT IO Family
-socketFamily fd = do
-    familyInt <- liftIO $ c_socket_family fd
-    guard $ familyInt >= 0
-    return $ unpackFamily familyInt
-
-socketType :: CInt -> MaybeT IO SocketType
-socketType fd = do
-    typeInt <- liftIO $ c_socket_type fd
-    case typeInt of
-        0 -> return NoSocketType
-        1 -> return Stream
-        2 -> return Datagram
-        3 -> return Raw
-        4 -> return RDM
-        5 -> return SeqPacket
-        _ -> mzero
-
-socketStatus :: CInt -> MaybeT IO SocketStatus
-socketStatus fd = do
-    listeningInt <- liftIO $ c_socket_listening fd
-    case listeningInt of
-      0 -> return Bound
-      1 -> return Listening
-      _ -> mzero
-
+            mkSocket fd
 
 sendBufWithFdTo :: Socket -> BC.ByteString -> SockAddr -> Socket -> IO Int
 sendBufWithFdTo sock state addr sockToSend =
   unsafeUseAsCStringLen state $ \(ptr, nbytes) ->
-    withSockAddr addr $ \p_addr sz ->
-      fromIntegral <$> c_sd_notify_with_fd (fdSocket sock) ptr (fromIntegral nbytes)
-                                           p_addr (fromIntegral sz) (fdSocket sockToSend)
-
-foreign import ccall unsafe "socket_family"
-  c_socket_family :: CInt -> IO CInt
-
-foreign import ccall unsafe "socket_type"
-  c_socket_type :: CInt -> IO CInt
-
-foreign import ccall unsafe "socket_listening"
-  c_socket_listening :: CInt -> IO CInt
+    bracket addrPointer free $ \p_addr -> do
+      fd <- fdSocket sock
+      fdToSend <- fdSocket sockToSend
+      fromIntegral <$> c_sd_notify_with_fd fd ptr (fromIntegral nbytes)
+                                           p_addr (fromIntegral addrSize) fdToSend
+  where addrSize = sizeOfSocketAddress addr
+        addrPointer = mallocBytes addrSize >>= (\ptr -> pokeSocketAddress ptr addr >> pure ptr)
 
 foreign import ccall unsafe "sd_notify_with_fd"
   c_sd_notify_with_fd :: CInt -> Ptr a -> CInt -> Ptr b -> CInt -> CInt -> IO CInt
