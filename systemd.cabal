@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                systemd
-version:             2.0.0
+version:             2.1.0
 synopsis:            Systemd facilities (Socket activation, Notify)
 description:         A module for Systemd facilities.
 homepage:            https://github.com/erebe/systemd
@@ -23,6 +23,8 @@ source-repository head
 library
   ghc-options:      -Wall
   exposed-modules:  System.Systemd.Daemon
+                  , System.Systemd.Daemon.Fd
+  other-modules:    System.Systemd.Internal
   c-sources:        System/Systemd/socket_info.c
   build-depends:       base == 4.* ,
                        unix >= 2.5,
