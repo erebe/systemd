@@ -126,7 +126,7 @@ notifyBusError msg = notify False $ "BUSERROR=" ++ msg
 --
 -- Usefull for zero downtime restart
 storeFd :: Socket -> IO (Maybe ())
-storeFd sock = socketToFd sock >>= Fd.storeFd
+storeFd sock = socketToFd_ sock >>= Fd.storeFd
 
 -- | Notify systemd to store a socket for us and specify a name.
 --
@@ -134,7 +134,7 @@ storeFd sock = socketToFd sock >>= Fd.storeFd
 --
 -- Usefull for zero downtime restart
 storeFdWithName :: Socket -> String -> IO (Maybe ())
-storeFdWithName sock name = socketToFd sock >>= flip Fd.storeFdWithName name
+storeFdWithName sock name = socketToFd_ sock >>= flip Fd.storeFdWithName name
 
 -- | Notify systemd about an event
 --
@@ -153,7 +153,7 @@ notify unset_env state = notifyWithFD_ unset_env state Nothing
 -- It is up to the caller to properly set the message
 -- (i.e: do not forget to set FDSTORE=1)
 notifyWithFD :: Bool -> String -> Socket -> IO (Maybe ())
-notifyWithFD unset_env state sock = socketToFd sock >>= Fd.notifyWithFD unset_env state
+notifyWithFD unset_env state sock = socketToFd_ sock >>= Fd.notifyWithFD unset_env state
 
 ------------------------------------------------------------------------------------------------
 --  SOCKET
