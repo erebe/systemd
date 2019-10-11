@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 module System.Systemd.Internal where
 
@@ -72,8 +73,12 @@ notifyWithFD_ unset_env state fd = do
 
             return ()
 
-socketToFd :: Socket -> IO Fd
-socketToFd = fmap Fd . fdSocket
+socketToFd_ :: Socket -> IO Fd
+#if ! MIN_VERSION_network(3,1,0)
+socketToFd_ = fmap Fd . fdSocket
+#else
+socketToFd_ = fmap Fd . unsafeFdSocket
+#endif
 
 fdToSocket :: Fd -> IO Socket
 fdToSocket = mkSocket . fromIntegral
