@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                systemd
-version:             2.1.0
+version:             2.2.0
 synopsis:            Systemd facilities (Socket activation, Notify)
 description:         A module for Systemd facilities.
 homepage:            https://github.com/erebe/systemd
