@@ -13,10 +13,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Install stack
-      run: |
-        curl -sSL https://get.haskellstack.org/ | sh
-        
     - name: Setup GHC
       run: |
         stack setup
