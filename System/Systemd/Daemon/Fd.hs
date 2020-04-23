@@ -91,7 +91,15 @@ notifyWithFD unset_env state sock = notifyWithFD_ unset_env state (Just sock)
 --
 --   Equivalent to standard 'System.Systemd.Daemon.getActivatedSockets'
 getActivatedSockets :: IO (Maybe [Fd])
-getActivatedSockets = fmap (fmap fst) <$> getActivatedSocketsWithNames
+getActivatedSockets = runMaybeT $ do
+    listenPid     <- read <$> MaybeT (getEnv "LISTEN_PID")
+    listenFDs     <- read <$> MaybeT (getEnv "LISTEN_FDS")
+
+    myPid <- liftIO getProcessID
+    guard $ listenPid == myPid
+
+    mapM (\fd -> liftIO (setNonBlockIfNeeded fd) >> pure (Fd fd))
+         [fdStart .. fdStart + listenFDs - 1]
 
 -- | Like 'getActivatedSockets', but also return the associated names.
 --   If a file descriptor has no associated name, it will be a generic
@@ -100,16 +108,10 @@ getActivatedSockets = fmap (fmap fst) <$> getActivatedSocketsWithNames
 --   Equivalent to standard 'System.Systemd.Daemon.getActivatedSocketsWithNames'
 getActivatedSocketsWithNames :: IO (Maybe [(Fd, String)])
 getActivatedSocketsWithNames = runMaybeT $ do
-    listenPid     <- read <$> MaybeT (getEnv "LISTEN_PID")
-    listenFDs     <- read <$> MaybeT (getEnv "LISTEN_FDS")
     listenFDNames <- MaybeT (getEnv "LISTEN_FDNAMES")
-
-    myPid <- liftIO getProcessID
-    guard $ listenPid == myPid
-
     let listenFDNames' = fmap BC.unpack $ BC.split ':' $ BC.pack listenFDNames
-    nonBlockFds <- mapM (\fd -> liftIO (setNonBlockIfNeeded fd) >> pure (Fd fd))
-                        [fdStart .. fdStart + listenFDs - 1]
+
+    nonBlockFds <- MaybeT getActivatedSockets
     guard $ length nonBlockFds == length listenFDNames'
 
     return $ zip nonBlockFds listenFDNames'
