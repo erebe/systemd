@@ -61,13 +61,16 @@ notifyWithFD_ unset_env state fd = do
                               then '\0' : tail socketPath
                               else socketPath
 
-            socketFd <- liftIO $ socket AF_UNIX Datagram 0
-            nbBytes  <- liftIO $ case fd of
-                  Nothing     -> sendTo socketFd (BC.pack state) (SockAddrUnix socketPath')
-                  Just sock'  -> sendBufWithFdTo socketFd (BC.pack state)
-                                                (SockAddrUnix socketPath') sock'
-
-            liftIO $ close socketFd
+            -- Acquire the notification socket with 'bracket' so the file
+            -- descriptor is closed even if 'sendTo' throws (for example when
+            -- systemd's notify socket is momentarily unavailable) or an async
+            -- exception is delivered mid-send.
+            nbBytes  <- liftIO $
+                  bracket (socket AF_UNIX Datagram 0) close $ \socketFd ->
+                    case fd of
+                      Nothing     -> sendTo socketFd (BC.pack state) (SockAddrUnix socketPath')
+                      Just sock'  -> sendBufWithFdTo socketFd (BC.pack state)
+                                                    (SockAddrUnix socketPath') sock'
             guard $ nbBytes >= length state
 
 
